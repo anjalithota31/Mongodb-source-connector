@@ -42,6 +42,7 @@ import com.tyss.mongodb.kafka.connect.sink.MongoSinkTopicConfig;
 import com.tyss.mongodb.kafka.connect.util.ConfigHelper;
 
 public class CustomMongoSinkConnector extends SinkConnector {
+  public static final String TOPICS_CONFIG = "topics";
   private static final List<String> REQUIRED_SINK_ACTIONS = asList("insert", "update", "remove");
   private static final List<String> REQUIRED_COLLSTATS_SINK_ACTIONS =
       asList("insert", "update", "remove", "collStats");

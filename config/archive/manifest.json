@@ -1,21 +1,21 @@
 {
-  "name" : "kafka-connect-mongodb",
+  "name" : "kafka-connect-mongodb-custom",
   "version" : "${project.version}",
-  "title" : "MongoDB Connector for Apache Kafka",
-  "description" : "The official MongoDB Kafka connector, providing both Sink and Source connectors.",
+  "title" : "Custom MongoDB Connector for Apache Kafka",
+  "description" : "Custom MongoDB Kafka connector with production improvements, providing both Sink and Source connectors.",
   "owner" : {
-    "username" : "mongodb",
-    "name" : "MongoDB",
-    "url" : "http://www.mongodb.com",
+    "username" : "tyss",
+    "name" : "TYSS",
+    "url" : "http://www.tyss.com",
     "logo" : "assets/mongodb-logo.png"
   },
   "support" : {
     "logo" : "assets/mongodb-logo.png",
-    "summary" : "Officially supported by MongoDB.",
+    "summary" : "Custom connector with production improvements including partition management, circuit breaker, and backpressure.",
     "url" : "http://jira.mongodb.org/browse/KAFKA",
-    "provider_name" : "MongoDB"
+    "provider_name" : "TYSS"
   },
-  "tags" : [ "mongodb", "mongo", "giantideas", "humongous", "documents", "json", "bson", "nosql", "analytics", "logs" ],
+  "tags" : [ "mongodb", "mongo", "documents", "json", "bson", "nosql", "analytics", "logs", "custom" ],
   "features" : {
     "supported_encodings" : [ "any" ],
     "single_message_transforms" : true,
@@ -23,8 +23,8 @@
     "kafka_connect_api" : true
   },
   "logo" : "assets/mongodb-leaf.png",
-  "documentation_url" : "https://github.com/mongodb/mongo-kafka/blob/master/README.md",
-  "source_url" : "https://github.com/mongodb/mongo-kafka/tree/master",
+  "documentation_url" : "https://github.com/anjalithota31/Mongodb-source-connector/blob/master/README.md",
+  "source_url" : "https://github.com/anjalithota31/Mongodb-source-connector/tree/master",
   "docker_image" : { },
   "license" : [{
     "name" : "The Apache License, Version 2.0",

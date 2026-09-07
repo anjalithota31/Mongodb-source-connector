@@ -50,13 +50,13 @@ import org.apache.kafka.common.config.ConfigValue;
 
 import com.mongodb.ConnectionString;
 
-import com.tyss.mongodb.kafka.connect.MongoSinkConnector;
+import com.tyss.mongodb.kafka.connect.CustomMongoSinkConnector;
 import com.tyss.mongodb.kafka.connect.util.Validators;
 import com.tyss.mongodb.kafka.connect.util.custom.credentials.CustomCredentialProvider;
 
 public class MongoSinkConfig extends AbstractConfig {
   private static final String EMPTY_STRING = "";
-  public static final String TOPICS_CONFIG = MongoSinkConnector.TOPICS_CONFIG;
+  public static final String TOPICS_CONFIG = CustomMongoSinkConnector.TOPICS_CONFIG;
   private static final String TOPICS_DOC =
       "A list of kafka topics for the sink connector, separated by commas";
   public static final String TOPICS_DEFAULT = EMPTY_STRING;

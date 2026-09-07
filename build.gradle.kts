@@ -511,7 +511,7 @@ tasks.register<Copy>("prepareConfluentArchive") {
     }
 
     from("config") {
-        include(listOf("MongoSinkConnector.properties", "MongoSourceConnector.properties"))
+        include(listOf("CustomMongoSinkConnector.properties", "CustomMongoSourceConnector.properties"))
         into("etc")
     }
 
