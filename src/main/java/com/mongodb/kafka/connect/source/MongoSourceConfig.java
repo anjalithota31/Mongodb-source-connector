@@ -576,6 +576,85 @@ public class MongoSourceConfig extends AbstractConfig {
   public static final String LEGACY_ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_DOC =
       "Use this property if you would like to configure the connector's error handling behavior differently from the Connect framework's.";
 
+  public static final String EMAIL_NOTIFICATION_ENABLED_CONFIG = "email.notification.enabled";
+  private static final String EMAIL_NOTIFICATION_ENABLED_DISPLAY = "Enable Email Notifications";
+  private static final boolean EMAIL_NOTIFICATION_ENABLED_DEFAULT = false;
+  private static final String EMAIL_NOTIFICATION_ENABLED_DOC =
+      "Enable email notifications for connector failures. When enabled, emails will be sent "
+          + "via SMTP when the connector encounters critical errors.";
+
+  public static final String EMAIL_FROM_CONFIG = "email.from";
+  private static final String EMAIL_FROM_DISPLAY = "Email From Address";
+  private static final String EMAIL_FROM_DEFAULT = EMPTY_STRING;
+  private static final String EMAIL_FROM_DOC =
+      "The email address to use as the sender for failure notifications.";
+
+  public static final String EMAIL_TO_CONFIG = "email.to";
+  private static final String EMAIL_TO_DISPLAY = "Email To Addresses";
+  private static final String EMAIL_TO_DEFAULT = EMPTY_STRING;
+  private static final String EMAIL_TO_DOC =
+      "Comma-separated list of email addresses to receive failure notifications. "
+          + "Can be set via environment variable EMAIL_TO_ADDRESSES.";
+
+  public static final String EMAIL_SMTP_HOST_CONFIG = "email.smtp.host";
+  private static final String EMAIL_SMTP_HOST_DISPLAY = "SMTP Host";
+  private static final String EMAIL_SMTP_HOST_DEFAULT = EMPTY_STRING;
+  private static final String EMAIL_SMTP_HOST_DOC =
+      "SMTP server hostname (e.g., smtp.gmail.com, smtp.office365.com). "
+          + "Can be set via environment variable SMTP_HOST.";
+
+  public static final String EMAIL_SMTP_PORT_CONFIG = "email.smtp.port";
+  private static final String EMAIL_SMTP_PORT_DISPLAY = "SMTP Port";
+  private static final int EMAIL_SMTP_PORT_DEFAULT = 587;
+  private static final String EMAIL_SMTP_PORT_DOC =
+      "SMTP server port. Common ports: 25 (SMTP), 465 (SMTPS), 587 (STARTTLS). "
+          + "Can be set via environment variable SMTP_PORT.";
+
+  public static final String EMAIL_SMTP_USERNAME_CONFIG = "email.smtp.username";
+  private static final String EMAIL_SMTP_USERNAME_DISPLAY = "SMTP Username";
+  private static final String EMAIL_SMTP_USERNAME_DEFAULT = EMPTY_STRING;
+  private static final String EMAIL_SMTP_USERNAME_DOC =
+      "SMTP authentication username. Can be set via environment variable SMTP_USERNAME.";
+
+  public static final String EMAIL_SMTP_PASSWORD_CONFIG = "email.smtp.password";
+  private static final String EMAIL_SMTP_PASSWORD_DISPLAY = "SMTP Password";
+  private static final String EMAIL_SMTP_PASSWORD_DEFAULT = EMPTY_STRING;
+  private static final String EMAIL_SMTP_PASSWORD_DOC =
+      "SMTP authentication password. Can be set via environment variable SMTP_PASSWORD.";
+
+  public static final String EMAIL_SMTP_SSL_CONFIG = "email.smtp.ssl";
+  private static final String EMAIL_SMTP_SSL_DISPLAY = "Enable SSL";
+  private static final boolean EMAIL_SMTP_SSL_DEFAULT = false;
+  private static final String EMAIL_SMTP_SSL_DOC =
+      "Enable SSL for SMTP connection. Use this for port 465 (SMTPS).";
+
+  public static final String EMAIL_SMTP_TLS_CONFIG = "email.smtp.tls";
+  private static final String EMAIL_SMTP_TLS_DISPLAY = "Enable TLS";
+  private static final boolean EMAIL_SMTP_TLS_DEFAULT = true;
+  private static final String EMAIL_SMTP_TLS_DOC =
+      "Enable STARTTLS for SMTP connection. Use this for port 587.";
+
+  public static final String PARTITION_ROTATION_ENABLED_CONFIG = "partition.rotation.enabled";
+  private static final String PARTITION_ROTATION_ENABLED_DISPLAY = "Enable Partition Rotation";
+  private static final boolean PARTITION_ROTATION_ENABLED_DEFAULT = false;
+  private static final String PARTITION_ROTATION_ENABLED_DOC =
+      "Enable automatic partition rotation when a topic reaches the configured message threshold. "
+          + "When enabled, the connector will add new partitions to topics when they exceed the threshold.";
+
+  public static final String PARTITION_ROTATION_THRESHOLD_CONFIG = "partition.rotation.threshold";
+  private static final String PARTITION_ROTATION_THRESHOLD_DISPLAY = "Partition Rotation Threshold";
+  private static final long PARTITION_ROTATION_THRESHOLD_DEFAULT = 200000;
+  private static final String PARTITION_ROTATION_THRESHOLD_DOC =
+      "The number of messages after which a new partition will be added to the topic. "
+          + "Default is 200,000 messages.";
+
+  public static final String PARTITION_ROTATION_MAX_PARTITIONS_CONFIG =
+      "partition.rotation.max.partitions";
+  private static final String PARTITION_ROTATION_MAX_PARTITIONS_DISPLAY = "Maximum Partitions";
+  private static final int PARTITION_ROTATION_MAX_PARTITIONS_DEFAULT = 100;
+  private static final String PARTITION_ROTATION_MAX_PARTITIONS_DOC =
+      "The maximum number of partitions to create per topic. Default is 100.";
+
   public static final String HEARTBEAT_INTERVAL_MS_CONFIG = "heartbeat.interval.ms";
   private static final String HEARTBEAT_INTERVAL_MS_DISPLAY = "Heartbeat interval";
   private static final String HEARTBEAT_INTERVAL_MS_DOC =
@@ -942,6 +1021,79 @@ public class MongoSourceConfig extends AbstractConfig {
         AbstractConfig::getString,
         OVERRIDE_ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG,
         ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_CONFIG);
+  }
+
+  public boolean isEmailNotificationEnabled() {
+    return getBoolean(EMAIL_NOTIFICATION_ENABLED_CONFIG);
+  }
+
+  public String getEmailFrom() {
+    return getString(EMAIL_FROM_CONFIG);
+  }
+
+  public String getEmailTo() {
+    String envEmails = System.getenv("EMAIL_TO_ADDRESSES");
+    if (envEmails != null && !envEmails.trim().isEmpty()) {
+      return envEmails;
+    }
+    return getString(EMAIL_TO_CONFIG);
+  }
+
+  public String getEmailSmtpHost() {
+    String envHost = System.getenv("SMTP_HOST");
+    if (envHost != null && !envHost.trim().isEmpty()) {
+      return envHost;
+    }
+    return getString(EMAIL_SMTP_HOST_CONFIG);
+  }
+
+  public int getEmailSmtpPort() {
+    String envPort = System.getenv("SMTP_PORT");
+    if (envPort != null && !envPort.trim().isEmpty()) {
+      try {
+        return Integer.parseInt(envPort);
+      } catch (NumberFormatException e) {
+        LOGGER.warn(
+            "Invalid SMTP_PORT environment variable, using default: {}", EMAIL_SMTP_PORT_DEFAULT);
+      }
+    }
+    return getInt(EMAIL_SMTP_PORT_CONFIG);
+  }
+
+  public String getEmailSmtpUsername() {
+    String envUsername = System.getenv("SMTP_USERNAME");
+    if (envUsername != null && !envUsername.trim().isEmpty()) {
+      return envUsername;
+    }
+    return getString(EMAIL_SMTP_USERNAME_CONFIG);
+  }
+
+  public String getEmailSmtpPassword() {
+    String envPassword = System.getenv("SMTP_PASSWORD");
+    if (envPassword != null && !envPassword.trim().isEmpty()) {
+      return envPassword;
+    }
+    return getString(EMAIL_SMTP_PASSWORD_CONFIG);
+  }
+
+  public boolean getEmailSmtpSsl() {
+    return getBoolean(EMAIL_SMTP_SSL_CONFIG);
+  }
+
+  public boolean getEmailSmtpTls() {
+    return getBoolean(EMAIL_SMTP_TLS_CONFIG);
+  }
+
+  public boolean isPartitionRotationEnabled() {
+    return getBoolean(PARTITION_ROTATION_ENABLED_CONFIG);
+  }
+
+  public long getPartitionRotationThreshold() {
+    return getLong(PARTITION_ROTATION_THRESHOLD_CONFIG);
+  }
+
+  public int getPartitionRotationMaxPartitions() {
+    return getInt(PARTITION_ROTATION_MAX_PARTITIONS_CONFIG);
   }
 
   private <T extends Configurable> T configureInstance(final T instance) {
@@ -1528,6 +1680,127 @@ public class MongoSourceConfig extends AbstractConfig {
         ++orderInGroup,
         Width.SHORT,
         ERRORS_DEAD_LETTER_QUEUE_TOPIC_NAME_DISPLAY);
+
+    configDef.define(
+        EMAIL_NOTIFICATION_ENABLED_CONFIG,
+        Type.BOOLEAN,
+        EMAIL_NOTIFICATION_ENABLED_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_NOTIFICATION_ENABLED_DOC,
+        group,
+        ++orderInGroup,
+        Width.SHORT,
+        EMAIL_NOTIFICATION_ENABLED_DISPLAY);
+    configDef.define(
+        EMAIL_FROM_CONFIG,
+        Type.STRING,
+        EMAIL_FROM_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_FROM_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        EMAIL_FROM_DISPLAY);
+    configDef.define(
+        EMAIL_TO_CONFIG,
+        Type.STRING,
+        EMAIL_TO_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_TO_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        EMAIL_TO_DISPLAY);
+    configDef.define(
+        EMAIL_SMTP_HOST_CONFIG,
+        Type.STRING,
+        EMAIL_SMTP_HOST_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_SMTP_HOST_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        EMAIL_SMTP_HOST_DISPLAY);
+    configDef.define(
+        EMAIL_SMTP_PORT_CONFIG,
+        Type.INT,
+        EMAIL_SMTP_PORT_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_SMTP_PORT_DOC,
+        group,
+        ++orderInGroup,
+        Width.SHORT,
+        EMAIL_SMTP_PORT_DISPLAY);
+    configDef.define(
+        EMAIL_SMTP_USERNAME_CONFIG,
+        Type.STRING,
+        EMAIL_SMTP_USERNAME_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_SMTP_USERNAME_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        EMAIL_SMTP_USERNAME_DISPLAY);
+    configDef.define(
+        EMAIL_SMTP_PASSWORD_CONFIG,
+        Type.PASSWORD,
+        EMAIL_SMTP_PASSWORD_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_SMTP_PASSWORD_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        EMAIL_SMTP_PASSWORD_DISPLAY);
+    configDef.define(
+        EMAIL_SMTP_SSL_CONFIG,
+        Type.BOOLEAN,
+        EMAIL_SMTP_SSL_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_SMTP_SSL_DOC,
+        group,
+        ++orderInGroup,
+        Width.SHORT,
+        EMAIL_SMTP_SSL_DISPLAY);
+    configDef.define(
+        EMAIL_SMTP_TLS_CONFIG,
+        Type.BOOLEAN,
+        EMAIL_SMTP_TLS_DEFAULT,
+        Importance.MEDIUM,
+        EMAIL_SMTP_TLS_DOC,
+        group,
+        ++orderInGroup,
+        Width.SHORT,
+        EMAIL_SMTP_TLS_DISPLAY);
+    configDef.define(
+        PARTITION_ROTATION_ENABLED_CONFIG,
+        Type.BOOLEAN,
+        PARTITION_ROTATION_ENABLED_DEFAULT,
+        Importance.MEDIUM,
+        PARTITION_ROTATION_ENABLED_DOC,
+        group,
+        ++orderInGroup,
+        Width.SHORT,
+        PARTITION_ROTATION_ENABLED_DISPLAY);
+    configDef.define(
+        PARTITION_ROTATION_THRESHOLD_CONFIG,
+        Type.LONG,
+        PARTITION_ROTATION_THRESHOLD_DEFAULT,
+        Importance.MEDIUM,
+        PARTITION_ROTATION_THRESHOLD_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        PARTITION_ROTATION_THRESHOLD_DISPLAY);
+    configDef.define(
+        PARTITION_ROTATION_MAX_PARTITIONS_CONFIG,
+        Type.INT,
+        PARTITION_ROTATION_MAX_PARTITIONS_DEFAULT,
+        Importance.MEDIUM,
+        PARTITION_ROTATION_MAX_PARTITIONS_DOC,
+        group,
+        ++orderInGroup,
+        Width.SHORT,
+        PARTITION_ROTATION_MAX_PARTITIONS_DISPLAY);
 
     configDef.define(
         HEARTBEAT_INTERVAL_MS_CONFIG,

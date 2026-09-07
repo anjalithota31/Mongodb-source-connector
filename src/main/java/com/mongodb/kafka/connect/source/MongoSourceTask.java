@@ -26,8 +26,10 @@ import static java.util.Collections.singletonMap;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -46,6 +48,8 @@ import com.mongodb.event.CommandSucceededEvent;
 
 import com.mongodb.kafka.connect.Versions;
 import com.mongodb.kafka.connect.source.MongoSourceConfig.StartupConfig.StartupMode;
+import com.mongodb.kafka.connect.source.notification.EmailNotificationService;
+import com.mongodb.kafka.connect.source.partition.PartitionManager;
 import com.mongodb.kafka.connect.source.statistics.JmxStatisticsManager;
 import com.mongodb.kafka.connect.source.statistics.StatisticsManager;
 import com.mongodb.kafka.connect.util.ResumeTokenUtils;
@@ -93,6 +97,8 @@ public final class MongoSourceTask extends SourceTask {
   private static final String NS_KEY = "ns";
 
   private StartedMongoSourceTask startedTask;
+  private EmailNotificationService emailNotificationService;
+  private PartitionManager partitionManager;
 
   @Override
   public String version() {
@@ -146,12 +152,52 @@ public final class MongoSourceTask extends SourceTask {
               getMongoDriverInformation(CONNECTOR_TYPE, sourceConfig.getString(PROVIDER_CONFIG)));
       copyDataManager = shouldCopyData ? new MongoCopyDataManager(sourceConfig, mongoClient) : null;
 
+      // Initialize email notification service before creating StartedMongoSourceTask
+      if (sourceConfig.isEmailNotificationEnabled()) {
+        emailNotificationService =
+            new EmailNotificationService(
+                connectorName,
+                sourceConfig.getEmailFrom(),
+                sourceConfig.getEmailTo(),
+                sourceConfig.getEmailSmtpHost(),
+                sourceConfig.getEmailSmtpPort(),
+                sourceConfig.getEmailSmtpUsername(),
+                sourceConfig.getEmailSmtpPassword(),
+                sourceConfig.getEmailSmtpSsl(),
+                sourceConfig.getEmailSmtpTls(),
+                true);
+      }
+
+      // Initialize partition manager for automatic partition rotation
+      if (sourceConfig.isPartitionRotationEnabled()) {
+        try {
+          Properties adminProps = new Properties();
+          adminProps.putAll(props);
+          AdminClient adminClient = AdminClient.create(adminProps);
+          partitionManager =
+              new PartitionManager(
+                  adminClient,
+                  sourceConfig.getPartitionRotationThreshold(),
+                  sourceConfig.getPartitionRotationMaxPartitions(),
+                  true);
+          LOGGER.info("Partition manager initialized for connector: {}", connectorName);
+        } catch (Exception e) {
+          LOGGER.error("Failed to initialize partition manager: {}", e.getMessage(), e);
+        }
+      }
+
       startedTask =
           new StartedMongoSourceTask(
               // It is safer to read the `context` reference each time we need it
               // in case it changes, because there is no
               // documentation stating that it cannot be changed.
-              () -> context, sourceConfig, mongoClient, copyDataManager, statisticsManager);
+              () -> context,
+              sourceConfig,
+              mongoClient,
+              copyDataManager,
+              statisticsManager,
+              emailNotificationService,
+              partitionManager);
     } catch (RuntimeException taskStartingException) {
       //noinspection EmptyTryBlock
       try (StatisticsManager autoCloseableStatisticsManager = statisticsManager;
@@ -161,6 +207,16 @@ public final class MongoSourceTask extends SourceTask {
         // exceptions
       } catch (RuntimeException resourceReleasingException) {
         taskStartingException.addSuppressed(resourceReleasingException);
+      }
+      // Send email notification on startup failure
+      if (emailNotificationService != null) {
+        String exceptionChain = buildExceptionChain(taskStartingException);
+        emailNotificationService.sendFailureNotification(
+            "STARTUP_FAILURE",
+            "UNAVAILABLE",
+            taskStartingException.getClass().getName(),
+            taskStartingException.getMessage(),
+            exceptionChain);
       }
       throw new ConnectException("Failed to start MongoDB source task", taskStartingException);
     }
@@ -182,6 +238,12 @@ public final class MongoSourceTask extends SourceTask {
     LOGGER.info("Stopping MongoDB source task");
     if (startedTask != null) {
       startedTask.close();
+    }
+    if (emailNotificationService != null) {
+      emailNotificationService.close();
+    }
+    if (partitionManager != null) {
+      partitionManager.close();
     }
   }
 
@@ -261,5 +323,22 @@ public final class MongoSourceTask extends SourceTask {
     } else if ("aggregate".equals(commandName) || "find".equals(commandName)) {
       currentStatistics.getInitialCommandsFailed().sample(elapsedTimeMs);
     }
+  }
+
+  private String buildExceptionChain(final Throwable exception) {
+    StringBuilder chain = new StringBuilder();
+    Throwable current = exception;
+    while (current != null) {
+      chain
+          .append(current.getClass().getName())
+          .append(": ")
+          .append(current.getMessage())
+          .append("\n");
+      if (current.getCause() != null && current.getCause() != current) {
+        chain.append(" Caused by: ");
+      }
+      current = current.getCause();
+    }
+    return chain.toString();
   }
 }

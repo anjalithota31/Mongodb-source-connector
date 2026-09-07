@@ -84,6 +84,8 @@ import com.mongodb.lang.Nullable;
 
 import com.mongodb.kafka.connect.source.MongoSourceConfig.StartupConfig;
 import com.mongodb.kafka.connect.source.heartbeat.HeartbeatManager;
+import com.mongodb.kafka.connect.source.notification.EmailNotificationService;
+import com.mongodb.kafka.connect.source.partition.PartitionManager;
 import com.mongodb.kafka.connect.source.producer.SchemaAndValueProducer;
 import com.mongodb.kafka.connect.source.statistics.StatisticsManager;
 import com.mongodb.kafka.connect.source.topic.mapping.TopicMapper;
@@ -136,13 +138,17 @@ final class StartedMongoSourceTask implements AutoCloseable {
   @Nullable private MongoChangeStreamCursor<? extends BsonDocument> cursor;
   private final StatisticsManager statisticsManager;
   private final InnerOuterTimer inTaskPollInConnectFrameworkTimer;
+  @Nullable private final EmailNotificationService emailNotificationService;
+  @Nullable private final PartitionManager partitionManager;
 
   StartedMongoSourceTask(
       final Supplier<SourceTaskContext> sourceTaskContextAccessor,
       final MongoSourceConfig sourceConfig,
       final MongoClient mongoClient,
       @Nullable final MongoCopyDataManager copyDataManager,
-      final StatisticsManager statisticsManager) {
+      final StatisticsManager statisticsManager,
+      @Nullable final EmailNotificationService emailNotificationService,
+      @Nullable final PartitionManager partitionManager) {
     this.sourceTaskContextAccessor = sourceTaskContextAccessor;
     this.sourceConfig = sourceConfig;
     this.mongoClient = mongoClient;
@@ -155,6 +161,8 @@ final class StartedMongoSourceTask implements AutoCloseable {
     time = Time.SYSTEM;
     partitionMap = createPartitionMap(sourceConfig);
     this.copyDataManager = copyDataManager;
+    this.emailNotificationService = emailNotificationService;
+    this.partitionManager = partitionManager;
     if (shouldCopyData) {
       setCachedResultAndResumeToken();
     } else {
@@ -211,6 +219,9 @@ final class StartedMongoSourceTask implements AutoCloseable {
     Iterator<BsonDocument> batchIterator = getNextBatch().iterator();
     while (batchIterator.hasNext()) {
       BsonDocument changeStreamDocument = batchIterator.next();
+
+      // Fetch full document for update/delete operations when not present
+      changeStreamDocument = ensureFullDocumentForUpdateDelete(changeStreamDocument);
       Map<String, String> sourceOffset = new HashMap<>();
       sourceOffset.put(ID_FIELD, changeStreamDocument.getDocument(ID_FIELD).toJson());
       if (isCopying) {
@@ -254,6 +265,11 @@ final class StartedMongoSourceTask implements AutoCloseable {
         if (valueDocument.isPresent() || isTombstoneEvent) {
           BsonDocument valueDoc = valueDocument.orElse(new BsonDocument());
           LOGGER.trace("Adding {} to {}: {}", valueDoc, topicName, sourceOffset);
+
+          // Record message for partition rotation
+          if (partitionManager != null) {
+            partitionManager.recordMessage(topicName);
+          }
 
           if (valueDoc instanceof RawBsonDocument) {
             int sizeBytes = ((RawBsonDocument) valueDoc).getByteBuffer().limit();
@@ -354,6 +370,10 @@ final class StartedMongoSourceTask implements AutoCloseable {
   public void close() {
     LOGGER.info("Stopping MongoDB source task");
     isRunning = false;
+
+    if (partitionManager != null) {
+      partitionManager.close();
+    }
 
     //noinspection EmptyTryBlock
     try (StatisticsManager ignored3 = this.statisticsManager;
@@ -458,6 +478,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
             e.getErrorMessage(),
             e.getErrorCode(),
             e.getErrorMessage());
+        sendFailureNotification("ILLEGAL_OPERATION", "UNAVAILABLE", e);
         throw new ConnectException("Illegal $changeStream operation", e);
       } else if (e.getErrorCode() == UNKNOWN_FIELD_ERROR) {
         String msg =
@@ -466,6 +487,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
                     + " It is likely that you are trying to use functionality unsupported by your version of MongoDB.",
                 e.getErrorMessage(), e.getErrorCode());
         LOGGER.error(msg);
+        sendFailureNotification("UNSUPPORTED_OPERATION", "UNAVAILABLE", e);
         throw new ConnectException(msg, e);
       } else {
         LOGGER.warn(
@@ -484,6 +506,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
             e.getErrorMessage(),
             e.getErrorCode());
         if (changeStreamNotValid(e)) {
+          sendFailureNotification("RESUME_TOKEN_NOT_FOUND", "UNAVAILABLE", e);
           throw new ConnectException(
               "ResumeToken not found. Cannot create a change stream cursor", e);
         }
@@ -524,6 +547,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
       if (e.getErrorCode() == NAMESPACE_NOT_FOUND_ERROR) {
         return;
       }
+      sendFailureNotification("MONGODB_CONNECTION_ERROR", "UNAVAILABLE", e);
       throw new ConnectException(e);
     }
     ChangeStreamDocument<Document> firstResult = changeStreamCursor.tryNext();
@@ -610,6 +634,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
                 "An exception occurred when trying to get the next item from the Change Stream", e);
           }
         } else {
+          sendFailureNotification("CHANGE_STREAM_ERROR", "UNAVAILABLE", e);
           throw new ConnectException(
               "An exception occurred when trying to get the next item from the Change Stream: "
                   + e.getMessage(),
@@ -619,6 +644,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
     } catch (Exception e) {
       closeCursor();
       if (isRunning) {
+        sendFailureNotification("UNEXPECTED_ERROR", "UNAVAILABLE", e);
         throw new ConnectException("Unexpected error: " + e.getMessage(), e);
       }
     }
@@ -704,5 +730,105 @@ final class StartedMongoSourceTask implements AutoCloseable {
     } else {
       statisticsManager.currentStatistics().getRecordsAcknowledged().sample(1);
     }
+  }
+
+  /**
+   * Ensures that update operations have the fullDocument field by fetching it from MongoDB if
+   * missing. This is useful when using 'latest' startup mode where documents created after the
+   * connector starts may not have fullDocument in change stream events. For delete operations, the
+   * event is forwarded to the topic as-is since the document no longer exists in the database.
+   */
+  private BsonDocument ensureFullDocumentForUpdateDelete(final BsonDocument changeStreamDocument) {
+    if (!changeStreamDocument.containsKey("operationType")) {
+      return changeStreamDocument;
+    }
+
+    String operationType = changeStreamDocument.getString("operationType").getValue();
+
+    // For delete operations, forward the event as-is to the topic
+    if (operationType.equals("delete")) {
+      LOGGER.debug("Delete operation - forwarding event to topic as document no longer exists");
+      return changeStreamDocument;
+    }
+
+    // Only fetch for update operations
+    if (!operationType.equals("update")) {
+      return changeStreamDocument;
+    }
+
+    // If fullDocument is already present, no need to fetch
+    if (changeStreamDocument.containsKey(FULL_DOCUMENT)
+        && !changeStreamDocument.get(FULL_DOCUMENT).isNull()) {
+      return changeStreamDocument;
+    }
+
+    // Fetch the full document from MongoDB
+    try {
+      BsonDocument documentKey = changeStreamDocument.getDocument("documentKey");
+      BsonDocument ns = changeStreamDocument.getDocument("ns");
+      String dbName = ns.getString("db").getValue();
+      String collectionName = ns.getString("coll").getValue();
+
+      Document fullDoc =
+          mongoClient.getDatabase(dbName).getCollection(collectionName).find(documentKey).first();
+
+      if (fullDoc != null) {
+        BsonDocument fullBsonDoc = fullDoc.toBsonDocument();
+        // Create a new change stream document with the fullDocument added
+        BsonDocument modifiedDoc = new BsonDocument();
+        for (String key : changeStreamDocument.keySet()) {
+          modifiedDoc.put(key, changeStreamDocument.get(key));
+        }
+        modifiedDoc.put(FULL_DOCUMENT, fullBsonDoc);
+        LOGGER.debug(
+            "Fetched full document for update operation on {}: {}",
+            documentKey,
+            fullBsonDoc.toJson());
+        return modifiedDoc;
+      } else {
+        LOGGER.warn(
+            "Document not found in MongoDB for update operation: {}. "
+                + "Forwarding update event without fullDocument.",
+            documentKey);
+      }
+    } catch (Exception e) {
+      LOGGER.error(
+          "Failed to fetch full document from MongoDB: {}. "
+              + "Forwarding update event without fullDocument.",
+          e.getMessage(),
+          e);
+    }
+
+    return changeStreamDocument;
+  }
+
+  private void sendFailureNotification(
+      final String failureType, final String status, final Throwable exception) {
+    if (emailNotificationService != null) {
+      String exceptionChain = buildExceptionChain(exception);
+      emailNotificationService.sendFailureNotification(
+          failureType,
+          status,
+          exception.getClass().getName(),
+          exception.getMessage(),
+          exceptionChain);
+    }
+  }
+
+  private String buildExceptionChain(final Throwable exception) {
+    StringBuilder chain = new StringBuilder();
+    Throwable current = exception;
+    while (current != null) {
+      chain
+          .append(current.getClass().getName())
+          .append(": ")
+          .append(current.getMessage())
+          .append("\n");
+      if (current.getCause() != null && current.getCause() != current) {
+        chain.append(" Caused by: ");
+      }
+      current = current.getCause();
+    }
+    return chain.toString();
   }
 }

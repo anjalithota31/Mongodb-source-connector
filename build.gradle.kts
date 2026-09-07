@@ -127,6 +127,7 @@ dependencies {
     implementation("org.mongodb:mongodb-driver-sync:${project.extra["mongodbDriverVersion"]}")
     implementation("org.mongodb:mongodb-crypt:${project.extra["mongodbDriverVersion"]}")
     implementation("org.apache.avro:avro:${project.extra["avroVersion"]}")
+    implementation("com.sun.mail:javax.mail:1.6.2")
 
     mongoAndAvroDependencies("org.mongodb:mongodb-driver-sync:${project.extra["mongodbDriverVersion"]}")
     mongoAndAvroDependencies("org.mongodb:mongodb-crypt:${project.extra["mongodbDriverVersion"]}")
