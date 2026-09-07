@@ -120,15 +120,15 @@ public class MongoSourceConfig extends AbstractConfig {
 
   public static final String OUTPUT_JSON_FORMATTER_CONFIG = "output.json.formatter";
   private static final String OUTPUT_JSON_FORMATTER_DEFAULT =
-      "com.mongodb.kafka.connect.source.json.formatter.DefaultJson";
+      "com.tyss.mongodb.kafka.connect.source.json.formatter.DefaultJson";
   private static final String OUTPUT_JSON_FORMATTER_DISPLAY = "The json formatter class";
   private static final String OUTPUT_JSON_FORMATTER_DOC =
       "The output format of json strings can be configured to be either:\n"
-          + "  * com.mongodb.kafka.connect.source.json.formatter.DefaultJson: The legacy strict json formatter.\n"
-          + "  * com.mongodb.kafka.connect.source.json.formatter.ExtendedJson: The fully type safe extended json formatter.\n"
-          + "  * com.mongodb.kafka.connect.source.json.formatter.SimplifiedJson: Simplified Json, "
+          + "  * com.tyss.mongodb.kafka.connect.source.json.formatter.DefaultJson: The legacy strict json formatter.\n"
+          + "  * com.tyss.mongodb.kafka.connect.source.json.formatter.ExtendedJson: The fully type safe extended json formatter.\n"
+          + "  * com.tyss.mongodb.kafka.connect.source.json.formatter.SimplifiedJson: Simplified Json, "
           + "with ObjectId, Decimals, Dates and Binary values represented as strings.\n\n"
-          + "Users can provide their own implementation of the com.mongodb.kafka.connect.source.json.formatter.";
+          + "Users can provide their own implementation of the com.tyss.mongodb.kafka.connect.source.json.formatter.";
 
   public static final String OUTPUT_SCHEMA_KEY_CONFIG = "output.schema.key";
   private static final String OUTPUT_SCHEMA_KEY_DEFAULT = DEFAULT_AVRO_KEY_SCHEMA;
@@ -161,7 +161,7 @@ public class MongoSourceConfig extends AbstractConfig {
           + "By default this will be based on the 'ns' field in the change stream document, "
           + "along with any configured prefix and suffix.";
   private static final String TOPIC_MAPPER_DEFAULT =
-      "com.mongodb.kafka.connect.source.topic.mapping.DefaultTopicMapper";
+      "com.tyss.mongodb.kafka.connect.source.topic.mapping.DefaultTopicMapper";
 
   public static final String TOPIC_SEPARATOR_CONFIG = "topic.separator";
   public static final String TOPIC_SEPARATOR_DEFAULT = ".";

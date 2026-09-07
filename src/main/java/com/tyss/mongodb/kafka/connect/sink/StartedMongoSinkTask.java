@@ -85,7 +85,7 @@ final class StartedMongoSinkTask implements AutoCloseable {
   private String getMBeanName() {
     String id = MBeanServerUtils.taskIdFromCurrentThread();
     String connectorName = JmxStatisticsManager.getConnectorName(this.sinkConfig.getOriginals());
-    return "com.mongodb.kafka.connect:type=sink-task-metrics,connector="
+    return "com.tyss.mongodb.kafka.connect:type=sink-task-metrics,connector="
         + connectorName
         + ",task=sink-task-"
         + id;

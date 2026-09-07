@@ -112,7 +112,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
           + "name or the 'collection' configuration. "
           + "Users can provide their own implementations of the 'NamespaceMapper' interface.";
   private static final String NAMESPACE_MAPPER_DEFAULT =
-      "com.mongodb.kafka.connect.sink.namespace.mapping.DefaultNamespaceMapper";
+      "com.tyss.mongodb.kafka.connect.sink.namespace.mapping.DefaultNamespaceMapper";
 
   public static final String FIELD_KEY_DATABASE_NAMESPACE_MAPPER_CONFIG =
       "namespace.mapper.key.database.field";
@@ -120,7 +120,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
       "The key field to use as the destination database name.";
   private static final String FIELD_KEY_DATABASE_NAMESPACE_MAPPER_DOC =
       "The key field to use as the destination database name. "
-          + "Requires the 'namespace.mapper' to be set to 'com.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
+          + "Requires the 'namespace.mapper' to be set to 'com.tyss.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
   private static final String FIELD_KEY_DATABASE_NAMESPACE_MAPPER_DEFAULT = EMPTY_STRING;
 
   public static final String FIELD_KEY_COLLECTION_NAMESPACE_MAPPER_CONFIG =
@@ -129,7 +129,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
       "The key field to use as the destination collection name.";
   private static final String FIELD_KEY_COLLECTION_NAMESPACE_MAPPER_DOC =
       "The key field to use as the destination collection name. "
-          + "Requires the 'namespace.mapper' to be set to 'com.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
+          + "Requires the 'namespace.mapper' to be set to 'com.tyss.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
   private static final String FIELD_KEY_COLLECTION_NAMESPACE_MAPPER_DEFAULT = EMPTY_STRING;
 
   public static final String FIELD_VALUE_DATABASE_NAMESPACE_MAPPER_CONFIG =
@@ -138,7 +138,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
       "The value field to use as the destination database name.";
   private static final String FIELD_VALUE_DATABASE_NAMESPACE_MAPPER_DOC =
       "The value field to use as the destination database name. "
-          + "Requires the 'namespace.mapper' to be set to 'com.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
+          + "Requires the 'namespace.mapper' to be set to 'com.tyss.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
   private static final String FIELD_VALUE_DATABASE_NAMESPACE_MAPPER_DEFAULT = EMPTY_STRING;
 
   public static final String FIELD_VALUE_COLLECTION_NAMESPACE_MAPPER_CONFIG =
@@ -147,7 +147,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
       "The value field to use as the destination collection name.";
   private static final String FIELD_VALUE_COLLECTION_NAMESPACE_MAPPER_DOC =
       "The value field to use as the destination collection name. "
-          + "Requires the 'namespace.mapper' to be set to 'com.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
+          + "Requires the 'namespace.mapper' to be set to 'com.tyss.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
   private static final String FIELD_VALUE_COLLECTION_NAMESPACE_MAPPER_DEFAULT = EMPTY_STRING;
 
   public static final String FIELD_NAMESPACE_MAPPER_ERROR_IF_INVALID_CONFIG =
@@ -156,7 +156,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
       "Throw an error if the mapped field is missing or invalid.";
   private static final String FIELD_NAMESPACE_MAPPER_ERROR_IF_INVALID_DOC =
       "Throw an error if the mapped field is missing or invalid. Defaults to false. "
-          + "Requires the 'namespace.mapper' to be set to 'com.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
+          + "Requires the 'namespace.mapper' to be set to 'com.tyss.mongodb.kafka.connect.sink.topic.mapping.FieldPathNamespaceMapper'.";
   private static final boolean FIELD_NAMESPACE_MAPPER_ERROR_IF_INVALID_DEFAULT = false;
 
   // Writes
@@ -171,14 +171,14 @@ public class MongoSinkTopicConfig extends AbstractConfig {
   private static final String WRITEMODEL_STRATEGY_DOC =
       "The class the handles how build the write models for the sink documents";
   static final String WRITEMODEL_STRATEGY_DEFAULT =
-      "com.mongodb.kafka.connect.sink.writemodel.strategy.DefaultWriteModelStrategy";
+      "com.tyss.mongodb.kafka.connect.sink.writemodel.strategy.DefaultWriteModelStrategy";
 
   public static final String DELETE_WRITEMODEL_STRATEGY_CONFIG = "delete.writemodel.strategy";
   private static final String DELETE_WRITEMODEL_STRATEGY_DISPLAY = "The delete writeModel strategy";
   private static final String DELETE_WRITEMODEL_STRATEGY_DOC =
       "The class the handles how to build the delete write models for the sink documents.";
   static final String DELETE_WRITEMODEL_STRATEGY_DEFAULT =
-      "com.mongodb.kafka.connect.sink.writemodel.strategy.DeleteOneDefaultStrategy";
+      "com.tyss.mongodb.kafka.connect.sink.writemodel.strategy.DeleteOneDefaultStrategy";
 
   public static final String MAX_BATCH_SIZE_CONFIG = "max.batch.size";
   private static final String MAX_BATCH_SIZE_DISPLAY = "The maximum batch size";
@@ -212,7 +212,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
       "A comma separated list of post processor classes to process the data before "
           + "saving to MongoDB.";
   private static final String POST_PROCESSOR_CHAIN_DEFAULT =
-      "com.mongodb.kafka.connect.sink.processor.DocumentIdAdder";
+      "com.tyss.mongodb.kafka.connect.sink.processor.DocumentIdAdder";
 
   // Field value transformation
   public static final String FIELD_VALUE_TRANSFORMER_CONFIG = "field.value.transformer";
@@ -222,7 +222,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
           + "When configured, the specified transformer is applied to the fields listed in '"
           + "field.value.transformer.fields' before writing to MongoDB. "
           + "The class must implement "
-          + "com.mongodb.kafka.connect.sink.processor.field.transform.FieldValueTransformer "
+          + "com.tyss.mongodb.kafka.connect.sink.processor.field.transform.FieldValueTransformer "
           + "and have a public no-arg constructor.";
   static final String FIELD_VALUE_TRANSFORMER_DEFAULT = EMPTY_STRING;
 
@@ -280,7 +280,7 @@ public class MongoSinkTopicConfig extends AbstractConfig {
   private static final String DOCUMENT_ID_STRATEGY_DOC =
       "The IdStrategy class name to use for generating a unique document id (_id)";
   static final String DOCUMENT_ID_STRATEGY_DEFAULT =
-      "com.mongodb.kafka.connect.sink.processor.id.strategy.BsonOidStrategy";
+      "com.tyss.mongodb.kafka.connect.sink.processor.id.strategy.BsonOidStrategy";
 
   public static final String DOCUMENT_ID_STRATEGY_OVERWRITE_EXISTING_CONFIG =
       "document.id.strategy.overwrite.existing";

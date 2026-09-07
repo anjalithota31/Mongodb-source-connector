@@ -29,7 +29,7 @@ import com.tyss.mongodb.kafka.connect.util.BsonDocumentNullValueRemover;
 /**
  * Strips null-valued fields from the document body of a CDC-produced WriteModel.
  *
- * <p>CDC analogue of {@link com.mongodb.kafka.connect.sink.processor.NullFieldValueRemover},
+ * <p>CDC analogue of {@link com.tyss.mongodb.kafka.connect.sink.processor.NullFieldValueRemover},
  * applied after the CDC handler has constructed the WriteModel so the operation type (replace /
  * update / delete) has already been decided.
  *

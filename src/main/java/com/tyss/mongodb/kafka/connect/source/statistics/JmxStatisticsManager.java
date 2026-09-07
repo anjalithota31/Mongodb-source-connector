@@ -68,7 +68,7 @@ public final class JmxStatisticsManager implements StatisticsManager {
 
   private static String getMBeanName(final String mBean, final String connectorName) {
     String id = MBeanServerUtils.taskIdFromCurrentThread();
-    return "com.mongodb.kafka.connect:type=source-task-metrics,connector="
+    return "com.tyss.mongodb.kafka.connect:type=source-task-metrics,connector="
         + connectorName
         + ",task="
         + mBean

@@ -16,6 +16,6 @@
 
 /**
  * Contains program elements related to statistics gathered by {@link
- * com.mongodb.kafka.connect.source.MongoSourceTask}.
+ * com.tyss.mongodb.kafka.connect.source.MongoSourceTask}.
  */
 package com.tyss.mongodb.kafka.connect.source.statistics;
