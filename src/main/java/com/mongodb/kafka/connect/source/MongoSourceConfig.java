@@ -587,7 +587,8 @@ public class MongoSourceConfig extends AbstractConfig {
   private static final String EMAIL_FROM_DISPLAY = "Email From Address";
   private static final String EMAIL_FROM_DEFAULT = EMPTY_STRING;
   private static final String EMAIL_FROM_DOC =
-      "The email address to use as the sender for failure notifications.";
+      "The email address to use as the sender for failure notifications. "
+          + "Can be set via environment variable EMAIL_FROM.";
 
   public static final String EMAIL_TO_CONFIG = "email.to";
   private static final String EMAIL_TO_DISPLAY = "Email To Addresses";
@@ -1028,6 +1029,10 @@ public class MongoSourceConfig extends AbstractConfig {
   }
 
   public String getEmailFrom() {
+    String envFrom = System.getenv("EMAIL_FROM");
+    if (envFrom != null && !envFrom.trim().isEmpty()) {
+      return envFrom;
+    }
     return getString(EMAIL_FROM_CONFIG);
   }
 
