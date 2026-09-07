@@ -132,6 +132,7 @@ dependencies {
     mongoAndAvroDependencies("org.mongodb:mongodb-driver-sync:${project.extra["mongodbDriverVersion"]}")
     mongoAndAvroDependencies("org.mongodb:mongodb-crypt:${project.extra["mongodbDriverVersion"]}")
     mongoAndAvroDependencies("org.apache.avro:avro:${project.extra["avroVersion"]}")
+    mongoAndAvroDependencies("com.sun.mail:javax.mail:1.6.2")
 
     // Unit Tests
     testImplementation(platform("org.junit:junit-bom:5.8.1"))
