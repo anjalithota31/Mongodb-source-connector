@@ -153,7 +153,8 @@ public final class MongoSourceTask extends SourceTask {
       }
 
       setServerApi(builder, sourceConfig);
-      LOGGER.info("Step 4: Creating MongoDB client with connection string: {}", 
+      LOGGER.info(
+          "Step 4: Creating MongoDB client with connection string: {}",
           maskPassword(sourceConfig.getConnectionString().toString()));
       mongoClient =
           MongoClients.create(
@@ -200,7 +201,8 @@ public final class MongoSourceTask extends SourceTask {
                   sourceConfig.getPartitionRotationThreshold(),
                   sourceConfig.getPartitionRotationMaxPartitions(),
                   true);
-          LOGGER.info("Partition manager initialized successfully for connector: {}", connectorName);
+          LOGGER.info(
+              "Partition manager initialized successfully for connector: {}", connectorName);
         } catch (Exception e) {
           LOGGER.error("Failed to initialize partition manager: {}", e.getMessage(), e);
         }
@@ -248,7 +250,6 @@ public final class MongoSourceTask extends SourceTask {
             "Connection URI: {}", maskPassword(sourceConfig.getConnectionString().toString()));
         LOGGER.error("Database: {}", sourceConfig.getString(DATABASE_CONFIG));
         LOGGER.error("Collection: {}", sourceConfig.getString(COLLECTION_CONFIG));
-        LOGGER.error("SSL Info: {}", sourceConfig.getConnectionString().getSslProtocol());
       } catch (Exception configException) {
         LOGGER.error("Failed to log configuration details: {}", configException.getMessage());
       }

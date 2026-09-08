@@ -167,17 +167,18 @@ final class StartedMongoSourceTask implements AutoCloseable {
     this.copyDataManager = copyDataManager;
     this.emailNotificationService = emailNotificationService;
     this.partitionManager = partitionManager;
-    
+
     if (shouldCopyData) {
       LOGGER.info("StartedMongoSourceTask: Setting cached result and resume token (copy mode)");
       setCachedResultAndResumeToken();
       LOGGER.info("StartedMongoSourceTask: Cached result and resume token set successfully");
     } else {
-      LOGGER.info("StartedMongoSourceTask: Initializing cursor and heartbeat manager (stream mode)");
+      LOGGER.info(
+          "StartedMongoSourceTask: Initializing cursor and heartbeat manager (stream mode)");
       initializeCursorAndHeartbeatManager();
       LOGGER.info("StartedMongoSourceTask: Cursor and heartbeat manager initialized successfully");
     }
-    
+
     this.statisticsManager = statisticsManager;
     LOGGER.info("StartedMongoSourceTask: Initializing poll timer");
     inTaskPollInConnectFrameworkTimer =
@@ -399,7 +400,8 @@ final class StartedMongoSourceTask implements AutoCloseable {
   private void initializeCursorAndHeartbeatManager() {
     LOGGER.info("initializeCursorAndHeartbeatManager: Starting cursor creation");
     cursor = createCursor(sourceConfig, mongoClient);
-    LOGGER.info("initializeCursorAndHeartbeatManager: Cursor created successfully: {}", cursor != null);
+    LOGGER.info(
+        "initializeCursorAndHeartbeatManager: Cursor created successfully: {}", cursor != null);
     LOGGER.info("initializeCursorAndHeartbeatManager: Creating heartbeat manager");
     heartbeatManager =
         new HeartbeatManager(
@@ -417,7 +419,8 @@ final class StartedMongoSourceTask implements AutoCloseable {
       final MongoSourceConfig sourceConfig, final MongoClient mongoClient) {
     LOGGER.info("createCursor: Starting cursor creation");
     BsonDocument resumeToken = getResumeToken(sourceConfig);
-    LOGGER.info("createCursor: Resume token: {}", resumeToken != null ? resumeToken.toJson() : "null");
+    LOGGER.info(
+        "createCursor: Resume token: {}", resumeToken != null ? resumeToken.toJson() : "null");
     return tryCreateCursor(sourceConfig, mongoClient, resumeToken);
   }
 
@@ -565,10 +568,14 @@ final class StartedMongoSourceTask implements AutoCloseable {
       changeStreamCursor = getChangeStreamIterable(sourceConfig, mongoClient).cursor();
       LOGGER.info("setCachedResultAndResumeToken: Change stream cursor created");
     } catch (MongoCommandException e) {
-      LOGGER.error("setCachedResultAndResumeToken: MongoCommandException with error code: {}, message: {}", 
-          e.getErrorCode(), e.getMessage(), e);
+      LOGGER.error(
+          "setCachedResultAndResumeToken: MongoCommandException with error code: {}, message: {}",
+          e.getErrorCode(),
+          e.getMessage(),
+          e);
       if (e.getErrorCode() == NAMESPACE_NOT_FOUND_ERROR) {
-        LOGGER.warn("setCachedResultAndResumeToken: Namespace not found, returning without caching");
+        LOGGER.warn(
+            "setCachedResultAndResumeToken: Namespace not found, returning without caching");
         return;
       }
       sendFailureNotification("MONGODB_CONNECTION_ERROR", "UNAVAILABLE", e);
@@ -576,7 +583,9 @@ final class StartedMongoSourceTask implements AutoCloseable {
     }
     LOGGER.info("setCachedResultAndResumeToken: Getting first result from cursor");
     ChangeStreamDocument<Document> firstResult = changeStreamCursor.tryNext();
-    LOGGER.info("setCachedResultAndResumeToken: First result: {}", firstResult != null ? "present" : "null");
+    LOGGER.info(
+        "setCachedResultAndResumeToken: First result: {}",
+        firstResult != null ? "present" : "null");
     if (firstResult != null) {
       cachedResult =
           new BsonDocumentWrapper<>(
@@ -587,7 +596,8 @@ final class StartedMongoSourceTask implements AutoCloseable {
     }
     cachedResumeToken =
         firstResult != null ? firstResult.getResumeToken() : changeStreamCursor.getResumeToken();
-    LOGGER.info("setCachedResultAndResumeToken: Cached resume token: {}", 
+    LOGGER.info(
+        "setCachedResultAndResumeToken: Cached resume token: {}",
         cachedResumeToken != null ? "present" : "null");
     changeStreamCursor.close();
     LOGGER.info("setCachedResultAndResumeToken: Cursor closed, caching complete");
