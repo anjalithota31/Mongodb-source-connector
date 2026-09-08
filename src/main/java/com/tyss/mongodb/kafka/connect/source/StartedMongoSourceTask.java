@@ -230,10 +230,14 @@ final class StartedMongoSourceTask implements AutoCloseable {
 
     List<SourceRecord> sourceRecords = new ArrayList<>();
     Iterator<BsonDocument> batchIterator = getNextBatch().iterator();
+    LOGGER.info("getNextBatch() returned iterator, checking for events...");
+    int batchSize = 0;
     while (batchIterator.hasNext()) {
+      batchSize++;
       BsonDocument changeStreamDocument = batchIterator.next();
-      LOGGER.debug(
-          "Received change stream event: operationType={}, ns={}",
+      LOGGER.info(
+          "Received change stream event #{}: operationType={}, ns={}",
+          batchSize,
           changeStreamDocument.containsKey("operationType")
               ? changeStreamDocument.getString("operationType").getValue()
               : "N/A",
@@ -324,6 +328,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
         }
       }
     }
+    LOGGER.info("Processed {} change stream events in this batch", batchSize);
     LOGGER.debug("Return batch of {}", sourceRecords.size());
 
     if (sourceRecords.isEmpty()) {
