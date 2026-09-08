@@ -134,8 +134,7 @@ public class PartitionManager {
   public void updateTopicPartitionCount(final String topicName, final int partitionCount) {
     if (!enabled) {
       LOGGER.debug(
-          "PartitionManager is disabled, skipping partition count update for topic: {}",
-          topicName);
+          "PartitionManager is disabled, skipping partition count update for topic: {}", topicName);
       return;
     }
     TopicPartitionInfo info = topicPartitionInfoMap.get(topicName);
