@@ -149,26 +149,37 @@ final class StartedMongoSourceTask implements AutoCloseable {
       final StatisticsManager statisticsManager,
       @Nullable final EmailNotificationService emailNotificationService,
       @Nullable final PartitionManager partitionManager) {
+    LOGGER.info("StartedMongoSourceTask: Constructor started");
     this.sourceTaskContextAccessor = sourceTaskContextAccessor;
     this.sourceConfig = sourceConfig;
     this.mongoClient = mongoClient;
     isRunning = true;
     boolean shouldCopyData = copyDataManager != null;
+    LOGGER.info("StartedMongoSourceTask: shouldCopyData = {}", shouldCopyData);
     if (shouldCopyData) {
       assertTrue(sourceConfig.getStartupConfig().startupMode() == COPY_EXISTING);
     }
     isCopying = shouldCopyData;
     time = Time.SYSTEM;
+    LOGGER.info("StartedMongoSourceTask: Creating partition map");
     partitionMap = createPartitionMap(sourceConfig);
+    LOGGER.info("StartedMongoSourceTask: Partition map created: {}", partitionMap);
     this.copyDataManager = copyDataManager;
     this.emailNotificationService = emailNotificationService;
     this.partitionManager = partitionManager;
+    
     if (shouldCopyData) {
+      LOGGER.info("StartedMongoSourceTask: Setting cached result and resume token (copy mode)");
       setCachedResultAndResumeToken();
+      LOGGER.info("StartedMongoSourceTask: Cached result and resume token set successfully");
     } else {
+      LOGGER.info("StartedMongoSourceTask: Initializing cursor and heartbeat manager (stream mode)");
       initializeCursorAndHeartbeatManager();
+      LOGGER.info("StartedMongoSourceTask: Cursor and heartbeat manager initialized successfully");
     }
+    
     this.statisticsManager = statisticsManager;
+    LOGGER.info("StartedMongoSourceTask: Initializing poll timer");
     inTaskPollInConnectFrameworkTimer =
         InnerOuterTimer.start(
             (inTaskPollSample) -> {
@@ -184,6 +195,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
                     .currentStatistics()
                     .getInConnectFramework()
                     .sample(inFrameworkSample.toMillis()));
+    LOGGER.info("StartedMongoSourceTask: Constructor completed successfully");
   }
 
   /** @see MongoSourceTask#poll() */
@@ -385,7 +397,10 @@ final class StartedMongoSourceTask implements AutoCloseable {
   }
 
   private void initializeCursorAndHeartbeatManager() {
+    LOGGER.info("initializeCursorAndHeartbeatManager: Starting cursor creation");
     cursor = createCursor(sourceConfig, mongoClient);
+    LOGGER.info("initializeCursorAndHeartbeatManager: Cursor created successfully: {}", cursor != null);
+    LOGGER.info("initializeCursorAndHeartbeatManager: Creating heartbeat manager");
     heartbeatManager =
         new HeartbeatManager(
             time,
@@ -393,14 +408,17 @@ final class StartedMongoSourceTask implements AutoCloseable {
             sourceConfig.getLong(HEARTBEAT_INTERVAL_MS_CONFIG),
             sourceConfig.getString(HEARTBEAT_TOPIC_NAME_CONFIG),
             partitionMap);
+    LOGGER.info("initializeCursorAndHeartbeatManager: Heartbeat manager created successfully");
   }
 
   @VisibleForTesting(otherwise = VisibleForTesting.AccessModifier.PRIVATE)
   @Nullable
   MongoChangeStreamCursor<? extends BsonDocument> createCursor(
       final MongoSourceConfig sourceConfig, final MongoClient mongoClient) {
-    LOGGER.debug("Creating a MongoCursor");
-    return tryCreateCursor(sourceConfig, mongoClient, getResumeToken(sourceConfig));
+    LOGGER.info("createCursor: Starting cursor creation");
+    BsonDocument resumeToken = getResumeToken(sourceConfig);
+    LOGGER.info("createCursor: Resume token: {}", resumeToken != null ? resumeToken.toJson() : "null");
+    return tryCreateCursor(sourceConfig, mongoClient, resumeToken);
   }
 
   @Nullable
@@ -539,28 +557,40 @@ final class StartedMongoSourceTask implements AutoCloseable {
    * stream.
    */
   private void setCachedResultAndResumeToken() {
+    LOGGER.info("setCachedResultAndResumeToken: Starting to cache result and resume token");
     MongoChangeStreamCursor<ChangeStreamDocument<Document>> changeStreamCursor;
 
     try {
+      LOGGER.info("setCachedResultAndResumeToken: Getting change stream iterable");
       changeStreamCursor = getChangeStreamIterable(sourceConfig, mongoClient).cursor();
+      LOGGER.info("setCachedResultAndResumeToken: Change stream cursor created");
     } catch (MongoCommandException e) {
+      LOGGER.error("setCachedResultAndResumeToken: MongoCommandException with error code: {}, message: {}", 
+          e.getErrorCode(), e.getMessage(), e);
       if (e.getErrorCode() == NAMESPACE_NOT_FOUND_ERROR) {
+        LOGGER.warn("setCachedResultAndResumeToken: Namespace not found, returning without caching");
         return;
       }
       sendFailureNotification("MONGODB_CONNECTION_ERROR", "UNAVAILABLE", e);
       throw new ConnectException(e);
     }
+    LOGGER.info("setCachedResultAndResumeToken: Getting first result from cursor");
     ChangeStreamDocument<Document> firstResult = changeStreamCursor.tryNext();
+    LOGGER.info("setCachedResultAndResumeToken: First result: {}", firstResult != null ? "present" : "null");
     if (firstResult != null) {
       cachedResult =
           new BsonDocumentWrapper<>(
               firstResult,
               ChangeStreamDocument.createCodec(
                   Document.class, MongoClientSettings.getDefaultCodecRegistry()));
+      LOGGER.info("setCachedResultAndResumeToken: Cached result set");
     }
     cachedResumeToken =
         firstResult != null ? firstResult.getResumeToken() : changeStreamCursor.getResumeToken();
+    LOGGER.info("setCachedResultAndResumeToken: Cached resume token: {}", 
+        cachedResumeToken != null ? "present" : "null");
     changeStreamCursor.close();
+    LOGGER.info("setCachedResultAndResumeToken: Cursor closed, caching complete");
   }
 
   /**

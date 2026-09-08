@@ -109,14 +109,22 @@ public final class MongoSourceTask extends SourceTask {
   @Override
   public void start(final Map<String, String> props) {
     LOGGER.info("Starting MongoDB source task");
+    LOGGER.info("Startup configuration properties count: {}", props.size());
     StatisticsManager statisticsManager = null;
     MongoClient mongoClient = null;
     MongoCopyDataManager copyDataManager = null;
     try {
+      LOGGER.info("Step 1: Creating source configuration");
       MongoSourceConfig sourceConfig = new MongoSourceConfig(props);
+      LOGGER.info("Source configuration created successfully");
+      LOGGER.info("Step 2: Determining if data should be copied");
       boolean shouldCopyData = shouldCopyData(context, sourceConfig);
+      LOGGER.info("Should copy data: {}", shouldCopyData);
       String connectorName = JmxStatisticsManager.getConnectorName(props);
+      LOGGER.info("Connector name: {}", connectorName);
+      LOGGER.info("Step 3: Initializing statistics manager");
       statisticsManager = new JmxStatisticsManager(shouldCopyData, connectorName);
+      LOGGER.info("Statistics manager initialized successfully");
       StatisticsManager statsManager = statisticsManager;
       CommandListener statisticsCommandListener =
           new CommandListener() {
@@ -145,15 +153,21 @@ public final class MongoSourceTask extends SourceTask {
       }
 
       setServerApi(builder, sourceConfig);
-
+      LOGGER.info("Step 4: Creating MongoDB client with connection string: {}", 
+          maskPassword(sourceConfig.getConnectionString().toString()));
       mongoClient =
           MongoClients.create(
               builder.build(),
               getMongoDriverInformation(CONNECTOR_TYPE, sourceConfig.getString(PROVIDER_CONFIG)));
+      LOGGER.info("MongoDB client created successfully");
+      LOGGER.info("Step 5: Creating copy data manager");
       copyDataManager = shouldCopyData ? new MongoCopyDataManager(sourceConfig, mongoClient) : null;
+      LOGGER.info("Copy data manager created: {}", copyDataManager != null);
 
       // Initialize email notification service before creating StartedMongoSourceTask
+      LOGGER.info("Step 6: Checking email notification configuration");
       if (sourceConfig.isEmailNotificationEnabled()) {
+        LOGGER.info("Email notification is enabled, initializing service");
         emailNotificationService =
             new EmailNotificationService(
                 connectorName,
@@ -166,26 +180,35 @@ public final class MongoSourceTask extends SourceTask {
                 sourceConfig.getEmailSmtpSsl(),
                 sourceConfig.getEmailSmtpTls(),
                 true);
+        LOGGER.info("Email notification service initialized successfully");
+      } else {
+        LOGGER.info("Email notification is disabled");
       }
 
       // Initialize partition manager for automatic partition rotation
+      LOGGER.info("Step 7: Checking partition rotation configuration");
       if (sourceConfig.isPartitionRotationEnabled()) {
+        LOGGER.info("Partition rotation is enabled, initializing partition manager");
         try {
           Properties adminProps = new Properties();
           adminProps.putAll(props);
           AdminClient adminClient = AdminClient.create(adminProps);
+          LOGGER.info("Kafka AdminClient created successfully for partition management");
           partitionManager =
               new PartitionManager(
                   adminClient,
                   sourceConfig.getPartitionRotationThreshold(),
                   sourceConfig.getPartitionRotationMaxPartitions(),
                   true);
-          LOGGER.info("Partition manager initialized for connector: {}", connectorName);
+          LOGGER.info("Partition manager initialized successfully for connector: {}", connectorName);
         } catch (Exception e) {
           LOGGER.error("Failed to initialize partition manager: {}", e.getMessage(), e);
         }
+      } else {
+        LOGGER.info("Partition rotation is disabled");
       }
 
+      LOGGER.info("Step 8: Creating StartedMongoSourceTask");
       startedTask =
           new StartedMongoSourceTask(
               // It is safer to read the `context` reference each time we need it
@@ -198,6 +221,7 @@ public final class MongoSourceTask extends SourceTask {
               statisticsManager,
               emailNotificationService,
               partitionManager);
+      LOGGER.info("StartedMongoSourceTask created successfully");
     } catch (RuntimeException taskStartingException) {
       //noinspection EmptyTryBlock
       try (StatisticsManager autoCloseableStatisticsManager = statisticsManager;
@@ -208,6 +232,36 @@ public final class MongoSourceTask extends SourceTask {
       } catch (RuntimeException resourceReleasingException) {
         taskStartingException.addSuppressed(resourceReleasingException);
       }
+
+      // Enhanced error logging for failure diagnosis
+      LOGGER.error("========================================");
+      LOGGER.error("MongoDB Source Task Startup Failure");
+      LOGGER.error("========================================");
+      LOGGER.error("Exception Type: {}", taskStartingException.getClass().getName());
+      LOGGER.error("Exception Message: {}", taskStartingException.getMessage());
+      LOGGER.error("Full Stack Trace:", taskStartingException);
+
+      // Log connection details for debugging
+      try {
+        MongoSourceConfig sourceConfig = new MongoSourceConfig(props);
+        LOGGER.error(
+            "Connection URI: {}", maskPassword(sourceConfig.getConnectionString().toString()));
+        LOGGER.error("Database: {}", sourceConfig.getString(DATABASE_CONFIG));
+        LOGGER.error("Collection: {}", sourceConfig.getString(COLLECTION_CONFIG));
+        LOGGER.error("SSL Info: {}", sourceConfig.getConnectionString().getSslProtocol());
+      } catch (Exception configException) {
+        LOGGER.error("Failed to log configuration details: {}", configException.getMessage());
+      }
+
+      // Log suppressed exceptions if any
+      if (taskStartingException.getSuppressed().length > 0) {
+        LOGGER.error("Suppressed Exceptions:");
+        for (Throwable suppressed : taskStartingException.getSuppressed()) {
+          LOGGER.error("  - {}: {}", suppressed.getClass().getName(), suppressed.getMessage());
+        }
+      }
+      LOGGER.error("========================================");
+
       // Send email notification on startup failure
       if (emailNotificationService != null) {
         String exceptionChain = buildExceptionChain(taskStartingException);
@@ -218,7 +272,9 @@ public final class MongoSourceTask extends SourceTask {
             taskStartingException.getMessage(),
             exceptionChain);
       }
-      throw new ConnectException("Failed to start MongoDB source task", taskStartingException);
+      throw new ConnectException(
+          "Failed to start MongoDB source task: " + taskStartingException.getMessage(),
+          taskStartingException);
     }
     LOGGER.info("Started MongoDB source task");
   }
@@ -340,5 +396,13 @@ public final class MongoSourceTask extends SourceTask {
       current = current.getCause();
     }
     return chain.toString();
+  }
+
+  private String maskPassword(final String connectionString) {
+    if (connectionString == null) {
+      return "null";
+    }
+    // Mask password in connection string for security
+    return connectionString.replaceAll("://[^:]+:[^@]+@", "://****:****@");
   }
 }
