@@ -232,9 +232,14 @@ final class StartedMongoSourceTask implements AutoCloseable {
     Iterator<BsonDocument> batchIterator = getNextBatch().iterator();
     while (batchIterator.hasNext()) {
       BsonDocument changeStreamDocument = batchIterator.next();
-      LOGGER.debug("Received change stream event: operationType={}, ns={}",
-          changeStreamDocument.containsKey("operationType") ? changeStreamDocument.getString("operationType").getValue() : "N/A",
-          changeStreamDocument.containsKey("ns") ? changeStreamDocument.getDocument("ns").toJson() : "N/A");
+      LOGGER.debug(
+          "Received change stream event: operationType={}, ns={}",
+          changeStreamDocument.containsKey("operationType")
+              ? changeStreamDocument.getString("operationType").getValue()
+              : "N/A",
+          changeStreamDocument.containsKey("ns")
+              ? changeStreamDocument.getDocument("ns").toJson()
+              : "N/A");
 
       // Fetch full document for update/delete operations when not present
       changeStreamDocument = ensureFullDocumentForUpdateDelete(changeStreamDocument);
