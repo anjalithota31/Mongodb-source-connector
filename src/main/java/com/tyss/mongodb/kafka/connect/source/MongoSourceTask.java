@@ -198,6 +198,21 @@ public final class MongoSourceTask extends SourceTask {
         try {
           Properties adminProps = new Properties();
           adminProps.putAll(props);
+          
+          // Check for bootstrap.servers in environment variable if not in props
+          if (!adminProps.containsKey("bootstrap.servers")) {
+            String envBootstrapServers = System.getenv("CONNECT_BOOTSTRAP_SERVERS");
+            if (envBootstrapServers != null && !envBootstrapServers.isEmpty()) {
+              adminProps.put("bootstrap.servers", envBootstrapServers);
+              LOGGER.info(
+                  "Using bootstrap.servers from environment variable CONNECT_BOOTSTRAP_SERVERS: {}",
+                  envBootstrapServers);
+            } else {
+              LOGGER.warn(
+                  "bootstrap.servers not found in connector config or CONNECT_BOOTSTRAP_SERVERS environment variable");
+            }
+          }
+          
           LOGGER.info(
               "Creating AdminClient with bootstrap.servers: {}",
               adminProps.get("bootstrap.servers"));

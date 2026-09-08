@@ -69,7 +69,8 @@ public class PartitionManager {
                   "PartitionManager: Initial partition count for topic {}: {}",
                   topicName,
                   initialPartitionCount);
-              return new TopicPartitionInfo(initialPartitionCount, new AtomicLong(CONFIGURED_PARTITIONS_UNKNOWN));
+              return new TopicPartitionInfo(
+                  initialPartitionCount, new AtomicLong(CONFIGURED_PARTITIONS_UNKNOWN));
             });
 
     long messageCount = info.messageCount.incrementAndGet();
