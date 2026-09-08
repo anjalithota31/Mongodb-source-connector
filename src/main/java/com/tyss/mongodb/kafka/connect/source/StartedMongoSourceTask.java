@@ -96,6 +96,9 @@ import com.tyss.mongodb.kafka.connect.util.time.InnerOuterTimer.InnerTimer;
 
 final class StartedMongoSourceTask implements AutoCloseable {
   private static final String FULL_DOCUMENT = "fullDocument";
+  private static final String OPERATION_TYPE = "operationType";
+  private static final String OPERATION_DELETE = "delete";
+  private static final String OPERATION_UPDATE = "update";
   private static final int NAMESPACE_NOT_FOUND_ERROR = 26;
   private static final int ILLEGAL_OPERATION_ERROR = 20;
   private static final int UNKNOWN_FIELD_ERROR = 40415;
@@ -230,31 +233,27 @@ final class StartedMongoSourceTask implements AutoCloseable {
 
     List<SourceRecord> sourceRecords = new ArrayList<>();
     Iterator<BsonDocument> batchIterator = getNextBatch().iterator();
-    LOGGER.info("getNextBatch() returned iterator, checking for events...");
+    LOGGER.debug("getNextBatch() returned iterator, checking for events...");
     int batchSize = 0;
+    Map<String, Integer> topicMessageCounts = new HashMap<>();
+
     while (batchIterator.hasNext()) {
       batchSize++;
       BsonDocument changeStreamDocument = batchIterator.next();
-      LOGGER.info(
+      String operationType =
+          changeStreamDocument.containsKey(OPERATION_TYPE)
+              ? changeStreamDocument.getString(OPERATION_TYPE).getValue()
+              : "N/A";
+      LOGGER.debug(
           "Received change stream event #{}: operationType={}, ns={}",
           batchSize,
-          changeStreamDocument.containsKey("operationType")
-              ? changeStreamDocument.getString("operationType").getValue()
-              : "N/A",
+          operationType,
           changeStreamDocument.containsKey("ns")
               ? changeStreamDocument.getDocument("ns").toJson()
               : "N/A");
 
-      // Fetch full document for update/delete operations when not present
-      LOGGER.info(
-          "Before ensureFullDocumentForUpdateDelete - documentKey: {}",
-          changeStreamDocument.containsKey("documentKey")
-              ? changeStreamDocument.getDocument("documentKey").toJson()
-              : "N/A");
+      // Fetch full document for update operations when not present
       changeStreamDocument = ensureFullDocumentForUpdateDelete(changeStreamDocument);
-      LOGGER.info(
-          "After ensureFullDocumentForUpdateDelete - has fullDocument: {}",
-          changeStreamDocument.containsKey("fullDocument"));
       Map<String, String> sourceOffset = new HashMap<>();
       sourceOffset.put(ID_FIELD, changeStreamDocument.getDocument(ID_FIELD).toJson());
       if (isCopying) {
@@ -280,17 +279,29 @@ final class StartedMongoSourceTask implements AutoCloseable {
         LOGGER.warn(
             "No topic set. Could not publish the message: {}", changeStreamDocument.toJson());
       } else {
+        // Track message count for partition manager (batched later)
+        if (partitionManager != null) {
+          topicMessageCounts.merge(topicName, 1, Integer::sum);
+        }
 
         Optional<BsonDocument> valueDocument = Optional.empty();
 
         boolean isTombstoneEvent =
             publishFullDocumentOnlyTombstoneOnDelete
                 && !changeStreamDocument.containsKey(FULL_DOCUMENT);
+
+        // Handle delete events: always publish regardless of publishFullDocumentOnly setting
+        boolean isDeleteEvent = OPERATION_DELETE.equals(operationType);
+
         if (publishFullDocumentOnly) {
           if (changeStreamDocument.containsKey(FULL_DOCUMENT)
               && changeStreamDocument.get(FULL_DOCUMENT).isDocument()) {
             valueDocument = Optional.of(changeStreamDocument.getDocument(FULL_DOCUMENT));
           }
+        } else if (isDeleteEvent && !isTombstoneEvent) {
+          // For delete events when publishFullDocumentOnly is false, publish the full change stream
+          // document
+          valueDocument = Optional.of(changeStreamDocument);
         } else {
           valueDocument = Optional.of(changeStreamDocument);
         }
@@ -298,15 +309,6 @@ final class StartedMongoSourceTask implements AutoCloseable {
         if (valueDocument.isPresent() || isTombstoneEvent) {
           BsonDocument valueDoc = valueDocument.orElse(new BsonDocument());
           LOGGER.trace("Adding {} to {}: {}", valueDoc, topicName, sourceOffset);
-
-          // Record message for partition rotation
-          if (partitionManager != null) {
-            LOGGER.debug("Recording message for partition rotation: topic={}", topicName);
-            partitionManager.recordMessage(topicName);
-          } else {
-            LOGGER.trace(
-                "PartitionManager is null, skipping message recording for topic: {}", topicName);
-          }
 
           if (valueDoc instanceof RawBsonDocument) {
             int sizeBytes = ((RawBsonDocument) valueDoc).getByteBuffer().limit();
@@ -336,8 +338,18 @@ final class StartedMongoSourceTask implements AutoCloseable {
         }
       }
     }
-    LOGGER.info("Processed {} change stream events in this batch", batchSize);
+    LOGGER.debug("Processed {} change stream events in this batch", batchSize);
     LOGGER.debug("Return batch of {}", sourceRecords.size());
+
+    // Batch partition manager calls to reduce overhead
+    if (partitionManager != null && !topicMessageCounts.isEmpty()) {
+      for (Map.Entry<String, Integer> entry : topicMessageCounts.entrySet()) {
+        String topic = entry.getKey();
+        int count = entry.getValue();
+        LOGGER.debug("Recording {} messages for partition rotation: topic={}", count, topic);
+        partitionManager.recordMessages(topic, count);
+      }
+    }
 
     if (sourceRecords.isEmpty()) {
       if (heartbeatManager != null) {
@@ -804,39 +816,29 @@ final class StartedMongoSourceTask implements AutoCloseable {
    * event is forwarded to the topic as-is since the document no longer exists in the database.
    */
   private BsonDocument ensureFullDocumentForUpdateDelete(final BsonDocument changeStreamDocument) {
-    LOGGER.info("ensureFullDocumentForUpdateDelete: START - processing document");
-    if (!changeStreamDocument.containsKey("operationType")) {
-      LOGGER.info(
-          "ensureFullDocumentForUpdateDelete: No operationType in change stream document, returning as-is");
+    if (!changeStreamDocument.containsKey(OPERATION_TYPE)) {
       return changeStreamDocument;
     }
 
-    String operationType = changeStreamDocument.getString("operationType").getValue();
-    LOGGER.info("ensureFullDocumentForUpdateDelete: operationType={}", operationType);
+    String operationType = changeStreamDocument.getString(OPERATION_TYPE).getValue();
 
     // For delete operations, forward the event as-is to the topic
-    if (operationType.equals("delete")) {
-      LOGGER.info("ensureFullDocumentForUpdateDelete: Delete operation detected, forwarding as-is");
+    if (OPERATION_DELETE.equals(operationType)) {
       return changeStreamDocument;
     }
 
     // Only fetch for update operations
-    if (!operationType.equals("update")) {
-      LOGGER.info(
-          "ensureFullDocumentForUpdateDelete: Not an update operation (operationType={}), returning as-is",
-          operationType);
+    if (!OPERATION_UPDATE.equals(operationType)) {
       return changeStreamDocument;
     }
 
     // If fullDocument is already present, no need to fetch
     if (changeStreamDocument.containsKey(FULL_DOCUMENT)
         && !changeStreamDocument.get(FULL_DOCUMENT).isNull()) {
-      LOGGER.info(
-          "ensureFullDocumentForUpdateDelete: fullDocument already present, no fetch needed");
       return changeStreamDocument;
     }
 
-    LOGGER.info(
+    LOGGER.debug(
         "Update operation without fullDocument, fetching from MongoDB for documentKey: {}",
         changeStreamDocument.getDocument("documentKey").toJson());
     try {
@@ -851,12 +853,9 @@ final class StartedMongoSourceTask implements AutoCloseable {
       if (fullDoc != null) {
         BsonDocument fullBsonDoc = fullDoc.toBsonDocument();
         // Create a new change stream document with the fullDocument added
-        BsonDocument modifiedDoc = new BsonDocument();
-        for (String key : changeStreamDocument.keySet()) {
-          modifiedDoc.put(key, changeStreamDocument.get(key));
-        }
+        BsonDocument modifiedDoc = changeStreamDocument.clone();
         modifiedDoc.put(FULL_DOCUMENT, fullBsonDoc);
-        LOGGER.info(
+        LOGGER.debug(
             "Fetched full document for update operation on {}: {}",
             documentKey,
             fullBsonDoc.toJson());

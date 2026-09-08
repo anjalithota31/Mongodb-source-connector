@@ -54,8 +54,14 @@ public class PartitionManager {
   }
 
   public void recordMessage(final String topicName) {
-    if (!enabled) {
-      LOGGER.debug("PartitionManager is disabled, ignoring message for topic: {}", topicName);
+    recordMessages(topicName, 1);
+  }
+
+  public void recordMessages(final String topicName, final int count) {
+    if (!enabled || count <= 0) {
+      LOGGER.debug(
+          "PartitionManager is disabled or count is zero, ignoring messages for topic: {}",
+          topicName);
       return;
     }
 
@@ -73,7 +79,7 @@ public class PartitionManager {
                   initialPartitionCount, new AtomicLong(CONFIGURED_PARTITIONS_UNKNOWN));
             });
 
-    long messageCount = info.messageCount.incrementAndGet();
+    long messageCount = info.messageCount.addAndGet(count);
     long threshold = messageThreshold;
 
     LOGGER.debug(
