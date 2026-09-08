@@ -64,7 +64,12 @@ public class PartitionManager {
             topicName,
             k -> {
               LOGGER.info("PartitionManager: Tracking new topic: {}", topicName);
-              return new TopicPartitionInfo(0, new AtomicLong(CONFIGURED_PARTITIONS_UNKNOWN));
+              int initialPartitionCount = getTopicPartitionCount(topicName);
+              LOGGER.info(
+                  "PartitionManager: Initial partition count for topic {}: {}",
+                  topicName,
+                  initialPartitionCount);
+              return new TopicPartitionInfo(initialPartitionCount, new AtomicLong(CONFIGURED_PARTITIONS_UNKNOWN));
             });
 
     long messageCount = info.messageCount.incrementAndGet();
@@ -84,6 +89,22 @@ public class PartitionManager {
           messageCount,
           threshold);
       checkAndAddPartition(topicName, info);
+    }
+  }
+
+  private int getTopicPartitionCount(final String topicName) {
+    try {
+      org.apache.kafka.clients.admin.DescribeTopicsResult describeTopicsResult =
+          adminClient.describeTopics(Collections.singleton(topicName));
+      org.apache.kafka.clients.admin.TopicDescription topicDescription =
+          describeTopicsResult.all().get().get(topicName);
+      return topicDescription.partitions().size();
+    } catch (Exception e) {
+      LOGGER.error(
+          "Failed to get partition count for topic {}: {}. Defaulting to 1.",
+          topicName,
+          e.getMessage());
+      return 1;
     }
   }
 
