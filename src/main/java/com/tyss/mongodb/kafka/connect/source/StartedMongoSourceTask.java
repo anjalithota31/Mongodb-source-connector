@@ -788,6 +788,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
     }
 
     String operationType = changeStreamDocument.getString("operationType").getValue();
+    LOGGER.debug("ensureFullDocumentForUpdateDelete: operationType={}", operationType);
 
     // For delete operations, forward the event as-is to the topic
     if (operationType.equals("delete")) {
@@ -797,16 +798,21 @@ final class StartedMongoSourceTask implements AutoCloseable {
 
     // Only fetch for update operations
     if (!operationType.equals("update")) {
+      LOGGER.debug(
+          "Not an update operation (operationType={}), returning as-is", operationType);
       return changeStreamDocument;
     }
 
     // If fullDocument is already present, no need to fetch
     if (changeStreamDocument.containsKey(FULL_DOCUMENT)
         && !changeStreamDocument.get(FULL_DOCUMENT).isNull()) {
+      LOGGER.debug("fullDocument already present in update event, no need to fetch");
       return changeStreamDocument;
     }
 
-    // Fetch the full document from MongoDB
+    LOGGER.info(
+        "Update operation without fullDocument, fetching from MongoDB for documentKey: {}",
+        changeStreamDocument.getDocument("documentKey").toJson());
     try {
       BsonDocument documentKey = changeStreamDocument.getDocument("documentKey");
       BsonDocument ns = changeStreamDocument.getDocument("ns");
@@ -824,7 +830,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
           modifiedDoc.put(key, changeStreamDocument.get(key));
         }
         modifiedDoc.put(FULL_DOCUMENT, fullBsonDoc);
-        LOGGER.debug(
+        LOGGER.info(
             "Fetched full document for update operation on {}: {}",
             documentKey,
             fullBsonDoc.toJson());
