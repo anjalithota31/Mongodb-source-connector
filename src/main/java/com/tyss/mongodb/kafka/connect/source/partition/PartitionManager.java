@@ -46,22 +46,43 @@ public class PartitionManager {
     this.maxPartitions = maxPartitions;
     this.enabled = enabled;
     this.topicPartitionInfoMap = new ConcurrentHashMap<>();
+    LOGGER.info(
+        "PartitionManager initialized: enabled={}, threshold={}, maxPartitions={}",
+        enabled,
+        messageThreshold,
+        maxPartitions);
   }
 
   public void recordMessage(final String topicName) {
     if (!enabled) {
+      LOGGER.debug("PartitionManager is disabled, ignoring message for topic: {}", topicName);
       return;
     }
 
     TopicPartitionInfo info =
         topicPartitionInfoMap.computeIfAbsent(
             topicName,
-            k -> new TopicPartitionInfo(0, new AtomicLong(CONFIGURED_PARTITIONS_UNKNOWN)));
+            k -> {
+              LOGGER.info("PartitionManager: Tracking new topic: {}", topicName);
+              return new TopicPartitionInfo(0, new AtomicLong(CONFIGURED_PARTITIONS_UNKNOWN));
+            });
 
     long messageCount = info.messageCount.incrementAndGet();
     long threshold = messageThreshold;
 
+    LOGGER.debug(
+        "PartitionManager: Topic={}, MessageCount={}, Threshold={}, CurrentPartitions={}",
+        topicName,
+        messageCount,
+        threshold,
+        info.currentPartitions);
+
     if (messageCount % threshold == 0 && messageCount > 0) {
+      LOGGER.info(
+          "PartitionManager: Threshold reached for topic {} - Message count: {} (threshold: {})",
+          topicName,
+          messageCount,
+          threshold);
       checkAndAddPartition(topicName, info);
     }
   }
@@ -112,12 +133,25 @@ public class PartitionManager {
 
   public void updateTopicPartitionCount(final String topicName, final int partitionCount) {
     if (!enabled) {
+      LOGGER.debug(
+          "PartitionManager is disabled, skipping partition count update for topic: {}",
+          topicName);
       return;
     }
     TopicPartitionInfo info = topicPartitionInfoMap.get(topicName);
     if (info != null) {
+      int oldCount = info.currentPartitions;
       info.currentPartitions = partitionCount;
-      LOGGER.debug("Updated partition count for topic {} to {}", topicName, partitionCount);
+      LOGGER.info(
+          "Updated partition count for topic {} from {} to {}",
+          topicName,
+          oldCount,
+          partitionCount);
+    } else {
+      LOGGER.warn(
+          "Topic {} not found in partition map during partition count update to {}",
+          topicName,
+          partitionCount);
     }
   }
 

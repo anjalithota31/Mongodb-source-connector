@@ -281,7 +281,10 @@ final class StartedMongoSourceTask implements AutoCloseable {
 
           // Record message for partition rotation
           if (partitionManager != null) {
+            LOGGER.debug("Recording message for partition rotation: topic={}", topicName);
             partitionManager.recordMessage(topicName);
+          } else {
+            LOGGER.trace("PartitionManager is null, skipping message recording for topic: {}", topicName);
           }
 
           if (valueDoc instanceof RawBsonDocument) {
