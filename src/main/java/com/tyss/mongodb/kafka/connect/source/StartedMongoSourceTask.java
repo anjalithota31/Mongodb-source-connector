@@ -246,7 +246,15 @@ final class StartedMongoSourceTask implements AutoCloseable {
               : "N/A");
 
       // Fetch full document for update/delete operations when not present
+      LOGGER.info(
+          "Before ensureFullDocumentForUpdateDelete - documentKey: {}",
+          changeStreamDocument.containsKey("documentKey")
+              ? changeStreamDocument.getDocument("documentKey").toJson()
+              : "N/A");
       changeStreamDocument = ensureFullDocumentForUpdateDelete(changeStreamDocument);
+      LOGGER.info(
+          "After ensureFullDocumentForUpdateDelete - has fullDocument: {}",
+          changeStreamDocument.containsKey("fullDocument"));
       Map<String, String> sourceOffset = new HashMap<>();
       sourceOffset.put(ID_FIELD, changeStreamDocument.getDocument(ID_FIELD).toJson());
       if (isCopying) {
@@ -796,29 +804,35 @@ final class StartedMongoSourceTask implements AutoCloseable {
    * event is forwarded to the topic as-is since the document no longer exists in the database.
    */
   private BsonDocument ensureFullDocumentForUpdateDelete(final BsonDocument changeStreamDocument) {
+    LOGGER.info("ensureFullDocumentForUpdateDelete: START - processing document");
     if (!changeStreamDocument.containsKey("operationType")) {
+      LOGGER.info(
+          "ensureFullDocumentForUpdateDelete: No operationType in change stream document, returning as-is");
       return changeStreamDocument;
     }
 
     String operationType = changeStreamDocument.getString("operationType").getValue();
-    LOGGER.debug("ensureFullDocumentForUpdateDelete: operationType={}", operationType);
+    LOGGER.info("ensureFullDocumentForUpdateDelete: operationType={}", operationType);
 
     // For delete operations, forward the event as-is to the topic
     if (operationType.equals("delete")) {
-      LOGGER.debug("Delete operation - forwarding event to topic as document no longer exists");
+      LOGGER.info("ensureFullDocumentForUpdateDelete: Delete operation detected, forwarding as-is");
       return changeStreamDocument;
     }
 
     // Only fetch for update operations
     if (!operationType.equals("update")) {
-      LOGGER.debug("Not an update operation (operationType={}), returning as-is", operationType);
+      LOGGER.info(
+          "ensureFullDocumentForUpdateDelete: Not an update operation (operationType={}), returning as-is",
+          operationType);
       return changeStreamDocument;
     }
 
     // If fullDocument is already present, no need to fetch
     if (changeStreamDocument.containsKey(FULL_DOCUMENT)
         && !changeStreamDocument.get(FULL_DOCUMENT).isNull()) {
-      LOGGER.debug("fullDocument already present in update event, no need to fetch");
+      LOGGER.info(
+          "ensureFullDocumentForUpdateDelete: fullDocument already present, no fetch needed");
       return changeStreamDocument;
     }
 
