@@ -188,11 +188,19 @@ public final class MongoSourceTask extends SourceTask {
 
       // Initialize partition manager for automatic partition rotation
       LOGGER.info("Step 7: Checking partition rotation configuration");
+      LOGGER.info(
+          "Partition rotation config check: enabled={}, threshold={}, maxPartitions={}",
+          sourceConfig.isPartitionRotationEnabled(),
+          sourceConfig.getPartitionRotationThreshold(),
+          sourceConfig.getPartitionRotationMaxPartitions());
       if (sourceConfig.isPartitionRotationEnabled()) {
         LOGGER.info("Partition rotation is enabled, initializing partition manager");
         try {
           Properties adminProps = new Properties();
           adminProps.putAll(props);
+          LOGGER.info(
+              "Creating AdminClient with bootstrap.servers: {}",
+              adminProps.get("bootstrap.servers"));
           AdminClient adminClient = AdminClient.create(adminProps);
           LOGGER.info("Kafka AdminClient created successfully for partition management");
           partitionManager =
@@ -202,9 +210,12 @@ public final class MongoSourceTask extends SourceTask {
                   sourceConfig.getPartitionRotationMaxPartitions(),
                   true);
           LOGGER.info(
-              "Partition manager initialized successfully for connector: {}", connectorName);
+              "Partition manager initialized successfully for connector: {}, partitionManager is null: {}",
+              connectorName,
+              partitionManager == null);
         } catch (Exception e) {
           LOGGER.error("Failed to initialize partition manager: {}", e.getMessage(), e);
+          partitionManager = null;
         }
       } else {
         LOGGER.info("Partition rotation is disabled");
