@@ -232,6 +232,9 @@ final class StartedMongoSourceTask implements AutoCloseable {
     Iterator<BsonDocument> batchIterator = getNextBatch().iterator();
     while (batchIterator.hasNext()) {
       BsonDocument changeStreamDocument = batchIterator.next();
+      LOGGER.debug("Received change stream event: operationType={}, ns={}",
+          changeStreamDocument.containsKey("operationType") ? changeStreamDocument.getString("operationType").getValue() : "N/A",
+          changeStreamDocument.containsKey("ns") ? changeStreamDocument.getDocument("ns").toJson() : "N/A");
 
       // Fetch full document for update/delete operations when not present
       changeStreamDocument = ensureFullDocumentForUpdateDelete(changeStreamDocument);
@@ -798,8 +801,7 @@ final class StartedMongoSourceTask implements AutoCloseable {
 
     // Only fetch for update operations
     if (!operationType.equals("update")) {
-      LOGGER.debug(
-          "Not an update operation (operationType={}), returning as-is", operationType);
+      LOGGER.debug("Not an update operation (operationType={}), returning as-is", operationType);
       return changeStreamDocument;
     }
 
