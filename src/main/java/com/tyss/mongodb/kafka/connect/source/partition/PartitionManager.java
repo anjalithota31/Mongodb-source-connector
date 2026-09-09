@@ -120,7 +120,8 @@ public class PartitionManager {
     }
   }
 
-  private void checkAndAddPartition(final String topicName, final TopicPartitionInfo info, final int expectedPartitionCount) {
+  private void checkAndAddPartition(
+      final String topicName, final TopicPartitionInfo info, final int expectedPartitionCount) {
     if (info.currentPartitions >= maxPartitions) {
       LOGGER.warn(
           "Topic {} has reached maximum partitions ({}). No more partitions will be added.",
