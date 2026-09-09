@@ -294,7 +294,10 @@ final class StartedMongoSourceTask implements AutoCloseable {
         boolean isDeleteEvent = OPERATION_DELETE.equals(operationType);
 
         if (publishFullDocumentOnly) {
-          if (changeStreamDocument.containsKey(FULL_DOCUMENT)
+          if (isDeleteEvent) {
+            // Delete events should always be published even when publishFullDocumentOnly is true
+            valueDocument = Optional.of(changeStreamDocument);
+          } else if (changeStreamDocument.containsKey(FULL_DOCUMENT)
               && changeStreamDocument.get(FULL_DOCUMENT).isDocument()) {
             valueDocument = Optional.of(changeStreamDocument.getDocument(FULL_DOCUMENT));
           }

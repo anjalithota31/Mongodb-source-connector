@@ -89,13 +89,18 @@ public class PartitionManager {
         threshold,
         info.currentPartitions);
 
-    if (messageCount % threshold == 0 && messageCount > 0) {
+    // Calculate the expected threshold based on the number of partitions that should exist
+    // for the current message count. This ensures partitions are added at regular intervals
+    // (every 'threshold' messages) regardless of the initial partition count.
+    int expectedPartitionCount = (int) (messageCount / threshold) + 1;
+    if (expectedPartitionCount > info.currentPartitions && messageCount > 0) {
       LOGGER.info(
-          "PartitionManager: Threshold reached for topic {} - Message count: {} (threshold: {})",
+          "PartitionManager: Threshold reached for topic {} - Message count: {}, Current partitions: {}, Expected partitions: {}",
           topicName,
           messageCount,
-          threshold);
-      checkAndAddPartition(topicName, info);
+          info.currentPartitions,
+          expectedPartitionCount);
+      checkAndAddPartition(topicName, info, expectedPartitionCount);
     }
   }
 
@@ -115,7 +120,7 @@ public class PartitionManager {
     }
   }
 
-  private void checkAndAddPartition(final String topicName, final TopicPartitionInfo info) {
+  private void checkAndAddPartition(final String topicName, final TopicPartitionInfo info, final int expectedPartitionCount) {
     if (info.currentPartitions >= maxPartitions) {
       LOGGER.warn(
           "Topic {} has reached maximum partitions ({}). No more partitions will be added.",
@@ -125,9 +130,10 @@ public class PartitionManager {
     }
 
     try {
-      int newPartitionCount = info.currentPartitions + 1;
+      // Add partitions incrementally to reach the expected count
+      int newPartitionCount = Math.min(expectedPartitionCount, maxPartitions);
       LOGGER.info(
-          "Topic {} has reached {} messages. Adding partition {} (total: {})",
+          "Topic {} has reached {} messages. Increasing partitions from {} to {}",
           topicName,
           info.messageCount.get(),
           info.currentPartitions,
@@ -140,7 +146,7 @@ public class PartitionManager {
         adminClient.createPartitions(partitionsMap).all().get();
         info.currentPartitions = newPartitionCount;
         LOGGER.info(
-            "Successfully added partition to topic {}. New partition count: {}",
+            "Successfully increased partitions for topic {}. New partition count: {}",
             topicName,
             newPartitionCount);
       } catch (Exception e) {
